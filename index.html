@@ -133,7 +133,7 @@
       </div>
     </div>
 
-    <!-- GRID DETAILED POLLUTANTS (Latar Belakang Unsur Menarik) -->
+    <!-- GRID DETAILED POLLUTANTS -->
     <div>
       <h3 class="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
         <i class="fa-solid fa-chart-simple text-teal-400"></i> Konsentrasi Polutan Utama
@@ -192,9 +192,9 @@
 
   </main>
 
-  <!-- MODAL SOLUSI -->
+  <!-- MINI MODAL SOLUSI (Rekomendasi Aksi) -->
   <div id="solutionModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
       <div class="flex items-center justify-between border-b border-slate-700 pb-3">
         <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
           <i class="fa-solid fa-shield-virus text-amber-400"></i> Solusi & Mitigasi Kesehatan
@@ -203,16 +203,24 @@
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
-      <div id="modalSolutionList" class="space-y-2.5 text-xs text-slate-300"></div>
-      <button onclick="closeSolutionModal()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2.5 rounded-xl transition text-sm">
-        Tutup
+
+      <div class="space-y-3 text-sm text-slate-300">
+        <p class="text-xs text-slate-400">Rekomendasi langkah perlindungan diri berdasarkan tingkat polusi udara saat ini:</p>
+        
+        <div id="modalSolutionList" class="space-y-2.5 text-xs text-slate-300">
+          <!-- Dynamic solutions populated by JavaScript -->
+        </div>
+      </div>
+
+      <button onclick="closeSolutionModal()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2.5 rounded-xl transition text-sm shadow-md">
+        Paham, Tutup Solusi
       </button>
     </div>
   </div>
 
-  <!-- FOOTER (Tahun Dinamis, Power by G.A.S, Created by UQ) -->
+  <!-- FOOTER -->
   <footer class="bg-slate-800/40 border-t border-slate-800 py-4 text-center text-xs text-slate-500 space-y-1">
-    <p>&copy; <span id="currentYear"></span> UDARAKU App. Power by G.A.S</p>
+    <p>&copy; <span id="currentYear"></span> Power by G.A.S</p>
     <p class="text-[11px] text-slate-400 font-semibold tracking-wider">Created By UQ</p>
   </footer>
 
@@ -226,9 +234,7 @@
     const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwQNJ9ORqtZ7Skn-VkW5at3xFZkgz-uOdyaQTYE1y0i4WrZnJWybT_9P4E6qsVEZudG/exec";
 
     document.addEventListener("DOMContentLoaded", () => {
-      // Tahun Dinamis Footer
       document.getElementById("currentYear").innerText = new Date().getFullYear();
-      
       initMap();
       loadLocationsFromSpreadsheet();
     });
@@ -238,8 +244,6 @@
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap'
       }).addTo(map);
-
-      // Default marker awal
       marker = L.marker([-6.2088, 106.8456]).addTo(map);
     }
 
@@ -250,7 +254,6 @@
       }
     }
 
-    // Fungsi Mengambil Lokasi GPS Pengguna Real-time
     function useCurrentLocation() {
       if (!navigator.geolocation) {
         alert("Geolocation tidak didukung oleh browser Anda.");
@@ -264,7 +267,6 @@
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
 
-          // Buat objek lokasi kustom untuk posisi user
           currentSelectedLocation = {
             id: "GPS-USER",
             name: "📍 Lokasi Saya Saat Ini",
@@ -272,17 +274,12 @@
             lng: lng
           };
 
-          // Update teks koordinat real-time
           document.getElementById("coordText").innerText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-
-          // Reset pilihan dropdown agar tidak bentrok
           document.getElementById("citySelect").value = "";
 
-          // Perbarui peta dengan icon penanda khusus / standar
           map.setView([lat, lng], 13);
           marker.setLatLng([lat, lng]).bindPopup("<b>Lokasi Anda Saat Ini</b>").openPopup();
 
-          // Ambil data AQI berdasarkan koordinat GPS user
           fetchAQI(currentSelectedLocation);
         },
         (error) => {
@@ -336,9 +333,7 @@
       currentSelectedLocation = locations.find(l => l.id === selectedId);
 
       if (currentSelectedLocation) {
-        // Tampilkan koordinat lokasi dari spreadsheet secara real-time
         document.getElementById("coordText").innerText = `${currentSelectedLocation.lat.toFixed(5)}, ${currentSelectedLocation.lng.toFixed(5)}`;
-        
         reCenterMap();
         fetchAQI(currentSelectedLocation);
       }
@@ -427,9 +422,9 @@
     function openSolutionModal() {
       const list = document.getElementById("modalSolutionList");
       list.innerHTML = `
-        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-700"><i class="fa-solid fa-mask text-amber-400 mr-2"></i> Gunakan Masker N95/KN95 di luar ruangan.</div>
-        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-700"><i class="fa-solid fa-house-chimney text-amber-400 mr-2"></i> Tutup jendela untuk mengurangi polusi masuk.</div>
-        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-700"><i class="fa-solid fa-wind text-amber-400 mr-2"></i> Nyalakan air purifier jika tersedia.</div>
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-700 flex items-center gap-2"><i class="fa-solid fa-mask text-amber-400"></i> Gunakan Masker N95/KN95 di luar ruangan.</div>
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-700 flex items-center gap-2"><i class="fa-solid fa-house-chimney text-amber-400"></i> Tutup jendela untuk mengurangi polusi masuk.</div>
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-700 flex items-center gap-2"><i class="fa-solid fa-wind text-amber-400"></i> Nyalakan air purifier jika tersedia di dalam ruangan.</div>
       `;
       document.getElementById("solutionModal").classList.remove("hidden");
     }
