@@ -36,7 +36,7 @@
         </div>
         <div>
           <h1 class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-sky-400 to-teal-300 bg-clip-text text-transparent">UDARAKU</h1>
-          <p class="text-xs text-slate-400">Air Quality Monitoring</p>
+          <p class="text-xs text-slate-400">Air Quality & Weather Monitoring</p>
         </div>
       </div>
 
@@ -73,14 +73,18 @@
         <!-- Badge Info Pin Peta -->
         <div class="bg-sky-950/60 border border-sky-500/30 text-sky-300 px-3 py-2 rounded-xl flex items-center gap-2">
           <i class="fa-solid fa-hand-pointer text-sky-400 animate-bounce"></i>
-          <span>Klik/Pin di mana saja pada peta untuk cek lokasi</span>
+          <span>Klik/Pin di mana saja pada peta</span>
         </div>
 
-        <!-- Koordinat Display -->
-        <div id="coordDisplay" class="bg-slate-900/80 border border-slate-700/80 px-3 py-2 rounded-xl flex items-center gap-2">
-          <i class="fa-solid fa-satellite-dish text-sky-400"></i>
-          <span>Koordinat: <strong id="coordText" class="text-slate-200">-</strong></span>
+        <!-- Nama Wilayah & Koordinat Display -->
+        <div class="bg-slate-900/80 border border-slate-700/80 px-3 py-2 rounded-xl flex flex-col gap-0.5">
+          <div class="flex items-center gap-1.5 text-slate-200 font-semibold">
+            <i class="fa-solid fa-map-pin text-teal-400"></i>
+            <span id="regionNameText">Memuat Wilayah...</span>
+          </div>
+          <span class="text-[10px] text-slate-400">Koordinat: <strong id="coordText" class="text-slate-300">-</strong></span>
         </div>
+
         <div id="lastUpdated" class="flex items-center gap-1.5 whitespace-nowrap">
           <i class="fa-regular fa-clock"></i> Diperbarui: <span id="updateTime">-</span>
         </div>
@@ -103,7 +107,7 @@
       </button>
     </div>
 
-    <!-- MAIN AQI GRID DISPLAY -->
+    <!-- MAIN AQI & WEATHER GRID DISPLAY -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       
       <!-- CARD AQI SCORE MAIN -->
@@ -118,9 +122,20 @@
           <div id="aqiStatusText" class="text-lg font-bold mt-2 text-slate-300">Menghitung Data...</div>
         </div>
 
-        <div class="w-full bg-slate-900 rounded-xl p-3 border border-slate-700/50 flex items-center justify-between text-xs text-slate-400">
-          <span>Batas Aman US EPA:</span>
-          <span class="font-semibold text-emerald-400">0 - 50 AQI</span>
+        <!-- TAMBAHAN: INFORMASI CUACA (Suhu, Kelembapan, Angin) -->
+        <div class="w-full grid grid-cols-3 gap-2 pt-3 border-t border-slate-700/55 text-center">
+          <div class="bg-slate-900/70 p-2 rounded-xl border border-slate-700/50">
+            <div class="text-[10px] text-slate-400"><i class="fa-solid fa-temperature-half text-sky-400 mr-1"></i>Suhu</div>
+            <div id="val-temp" class="text-xs font-bold text-slate-200 mt-1">-- °C</div>
+          </div>
+          <div class="bg-slate-900/70 p-2 rounded-xl border border-slate-700/50">
+            <div class="text-[10px] text-slate-400"><i class="fa-solid fa-droplet text-teal-400 mr-1"></i>Kelembapan</div>
+            <div id="val-humidity" class="text-xs font-bold text-slate-200 mt-1">-- %</div>
+          </div>
+          <div class="bg-slate-900/70 p-2 rounded-xl border border-slate-700/50">
+            <div class="text-[10px] text-slate-400"><i class="fa-solid fa-wind text-indigo-400 mr-1"></i>Angin</div>
+            <div id="val-wind" class="text-xs font-bold text-slate-200 mt-1">-- km/h</div>
+          </div>
         </div>
       </div>
 
@@ -236,7 +251,7 @@
     let locations = [];
     let currentSelectedLocation = null;
     let currentAQIData = null;
-    let userGpsLocation = null; // Variabel penyimpan posisi GPS terakhir user
+    let userGpsLocation = null;
 
     const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwQNJ9ORqtZ7Skn-VkW5at3xFZkgz-uOdyaQTYE1y0i4WrZnJWybT_9P4E6qsVEZudG/exec";
 
@@ -254,30 +269,49 @@
 
       marker = L.marker([-6.2088, 106.8456]).addTo(map);
 
-      // Event listener klik / pin peta
-      map.on('click', function(e) {
+      map.on('click', async function(e) {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
 
+        document.getElementById("regionNameText").innerText = "Mendeteksi wilayah...";
+        document.getElementById("coordText").innerText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+        const regionName = await getRegionNameFromCoordinates(lat, lng);
+
         marker.setLatLng([lat, lng])
-              .bindPopup(`<b>Pin Lokasi Dilihat</b><br>${lat.toFixed(4)}, ${lng.toFixed(4)}`)
+              .bindPopup(`<b>${regionName}</b><br>${lat.toFixed(4)}, ${lng.toFixed(4)}`)
               .openPopup();
 
         currentSelectedLocation = {
           id: "PIN-MAP",
-          name: `📍 Pin Peta (${lat.toFixed(3)}, ${lng.toFixed(3)})`,
+          name: regionName,
           lat: lat,
           lng: lng
         };
 
         document.getElementById("citySelect").value = "";
-        document.getElementById("coordText").innerText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        document.getElementById("regionNameText").innerText = regionName;
 
         fetchAQI(currentSelectedLocation);
       });
     }
 
-    // Fungsi Re-Center mengarah kembali khusus ke posisi GPS user
+    async function getRegionNameFromCoordinates(lat, lng) {
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14`, {
+          headers: { 'Accept-Language': 'id' }
+        });
+        const data = await response.json();
+        if (data && data.display_name) {
+          const parts = data.display_name.split(',');
+          return parts.slice(0, 3).join(',').trim();
+        }
+        return `Area (${lat.toFixed(3)}, ${lng.toFixed(3)})`;
+      } catch (error) {
+        return `Area (${lat.toFixed(3)}, ${lng.toFixed(3)})`;
+      }
+    }
+
     function reCenterMap() {
       if (userGpsLocation) {
         map.setView([userGpsLocation.lat, userGpsLocation.lng], 14);
@@ -294,37 +328,37 @@
         return;
       }
 
-      document.getElementById("coordText").innerText = "Mencari posisi GPS...";
+      document.getElementById("regionNameText").innerText = "Mendeteksi posisi GPS...";
+      document.getElementById("coordText").innerText = "Mencari koordinat...";
       
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
 
-          // Simpan ke variabel khusus GPS user
-          userGpsLocation = {
-            lat: lat,
-            lng: lng
-          };
+          userGpsLocation = { lat: lat, lng: lng };
+          const regionName = await getRegionNameFromCoordinates(lat, lng);
 
           currentSelectedLocation = {
             id: "GPS-USER",
-            name: "📍 Lokasi Saya Saat Ini",
+            name: regionName,
             lat: lat,
             lng: lng
           };
 
+          document.getElementById("regionNameText").innerText = regionName;
           document.getElementById("coordText").innerText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
           document.getElementById("citySelect").value = "";
 
           map.setView([lat, lng], 14);
-          marker.setLatLng([lat, lng]).bindPopup("<b>Lokasi Anda Saat Ini</b>").openPopup();
+          marker.setLatLng([lat, lng]).bindPopup(`<b>${regionName}</b>`).openPopup();
 
           fetchAQI(currentSelectedLocation);
         },
         (error) => {
           alert("Gagal mendeteksi lokasi: " + error.message);
-          document.getElementById("coordText").innerText = "Gagal mendeteksi";
+          document.getElementById("regionNameText").innerText = "Gagal mendeteksi";
+          document.getElementById("coordText").innerText = "-";
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
@@ -341,9 +375,9 @@
           .then(res => res.json())
           .catch(() => {
             renderLocations([
-              { id: "LOK-001", name: "Jakarta (Spreadsheet)", lat: -6.2088, lng: 106.8456 },
-              { id: "LOK-002", name: "Surabaya (Spreadsheet)", lat: -7.2575, lng: 112.7521 },
-              { id: "LOK-003", name: "Bandung (Spreadsheet)", lat: -6.9175, lng: 107.6191 }
+              { id: "LOK-001", name: "Jakarta", lat: -6.2088, lng: 106.8456 },
+              { id: "LOK-002", name: "Surabaya", lat: -7.2575, lng: 112.7521 },
+              { id: "LOK-003", name: "Bandung", lat: -6.9175, lng: 107.6191 }
             ]);
           });
       }
@@ -373,9 +407,13 @@
       currentSelectedLocation = locations.find(l => l.id === selectedId);
 
       if (currentSelectedLocation) {
+        document.getElementById("regionNameText").innerText = currentSelectedLocation.name;
         document.getElementById("coordText").innerText = `${currentSelectedLocation.lat.toFixed(5)}, ${currentSelectedLocation.lng.toFixed(5)}`;
+        
         map.setView([currentSelectedLocation.lat, currentSelectedLocation.lng], 12);
-        marker.setLatLng([currentSelectedLocation.lat, currentSelectedLocation.lng]);
+        marker.setLatLng([currentSelectedLocation.lat, currentSelectedLocation.lng])
+              .bindPopup(`<b>${currentSelectedLocation.name}</b>`).openPopup();
+        
         fetchAQI(currentSelectedLocation);
       }
     }
@@ -390,23 +428,33 @@
           .withFailureHandler(err => alert("Gagal mengambil AQI: " + err.message))
           .fetchAQIData(loc.lat, loc.lng);
       } else {
+        // Menggunakan Open-Meteo Air Quality + Weather API endpoint sekaligus untuk suhu, kelembapan, dan angin
         const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${loc.lat}&longitude=${loc.lng}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`;
-        fetch(url)
-          .then(res => res.json())
-          .then(res => {
-            const current = res.current;
-            const data = {
-              aqi: current.us_aqi || 0,
-              pm25: current.pm2_5 || 0,
-              pm10: current.pm10 || 0,
-              co: current.carbon_monoxide || 0,
-              no2: current.nitrogen_dioxide || 0,
-              so2: current.sulphur_dioxide || 0,
-              o3: current.ozone || 0
-            };
-            updateDashboard(data, loc);
-          })
-          .catch(err => alert("Gagal mengambil data udara: " + err.message));
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m`;
+        
+        Promise.all([
+          fetch(url).then(res => res.json()),
+          fetch(weatherUrl).then(res => res.json())
+        ])
+        .then(([airRes, weatherRes]) => {
+          const currentAir = airRes.current;
+          const currentWeather = weatherRes.current;
+
+          const data = {
+            aqi: currentAir.us_aqi || 0,
+            pm25: currentAir.pm2_5 || 0,
+            pm10: currentAir.pm10 || 0,
+            co: currentAir.carbon_monoxide || 0,
+            no2: currentAir.nitrogen_dioxide || 0,
+            so2: currentAir.sulphur_dioxide || 0,
+            o3: currentAir.ozone || 0,
+            temp: currentWeather.temperature_2m || 0,
+            humidity: currentWeather.relative_humidity_2m || 0,
+            windSpeed: currentWeather.wind_speed_10m || 0
+          };
+          updateDashboard(data, loc);
+        })
+        .catch(err => alert("Gagal mengambil data udara & cuaca: " + err.message));
       }
     }
 
@@ -416,12 +464,20 @@
       document.getElementById("aqiValue").innerText = aqi;
       document.getElementById("updateTime").innerText = new Date().toLocaleTimeString("id-ID");
 
+      // Update Card Polutan
       document.getElementById("val-pm25").innerText = data.pm25;
       document.getElementById("val-pm10").innerText = data.pm10;
       document.getElementById("val-co").innerText = data.co;
       document.getElementById("val-no2").innerText = data.no2;
       document.getElementById("val-so2").innerText = data.so2;
       document.getElementById("val-o3").innerText = data.o3;
+
+      // Update Card Cuaca Tambahan
+      if (data.temp !== undefined) {
+        document.getElementById("val-temp").innerText = `${data.temp} °C`;
+        document.getElementById("val-humidity").innerText = `${data.humidity} %`;
+        document.getElementById("val-wind").innerText = `${data.windSpeed} km/h`;
+      }
 
       const warningBanner = document.getElementById("warningBanner");
       const aqiStatusText = document.getElementById("aqiStatusText");
@@ -477,12 +533,12 @@
     function exportToCSV() {
       if (!currentSelectedLocation || !currentAQIData) return alert("Belum ada data.");
       const csvContent = "data:text/csv;charset=utf-8," 
-        + "Tanggal,Kota,AQI,PM2.5,PM10,CO,NO2,SO2,O3\n"
-        + `${new Date().toLocaleDateString("id-ID")},${currentSelectedLocation.name},${currentAQIData.aqi},${currentAQIData.pm25},${currentAQIData.pm10},${currentAQIData.co},${currentAQIData.no2},${currentAQIData.so2},${currentAQIData.o3}`;
+        + "Tanggal,Wilayah,AQI,Suhu(C),Kelembapan(%),KecepatanAngin(kmh),PM2.5,PM10,CO,NO2,SO2,O3\n"
+        + `${new Date().toLocaleDateString("id-ID")},"${currentSelectedLocation.name}",${currentAQIData.aqi},${currentAQIData.temp || 0},${currentAQIData.humidity || 0},${currentAQIData.windSpeed || 0},${currentAQIData.pm25},${currentAQIData.pm10},${currentAQIData.co},${currentAQIData.no2},${currentAQIData.so2},${currentAQIData.o3}`;
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Laporan_AQI_${currentSelectedLocation.name.replace(/[^a-zA-Z0-9]/g, '_')}.csv`);
+      link.setAttribute("download", `Laporan_AQI_Cuaca_${currentSelectedLocation.name.replace(/[^a-zA-Z0-9]/g, '_')}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
