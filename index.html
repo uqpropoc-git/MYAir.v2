@@ -132,7 +132,7 @@
           </h3>
           <button onclick="reCenterMap()" class="flex items-center space-x-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-600 transition shadow-sm">
             <i class="fa-solid fa-crosshairs"></i>
-            <span>Re-Center</span>
+            <span>Re-Center GPS Saya</span>
           </button>
         </div>
         <div id="map" class="w-full rounded-xl border border-slate-700 overflow-hidden shadow-inner"></div>
@@ -236,6 +236,7 @@
     let locations = [];
     let currentSelectedLocation = null;
     let currentAQIData = null;
+    let userGpsLocation = null; // Variabel penyimpan posisi GPS terakhir user
 
     const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwQNJ9ORqtZ7Skn-VkW5at3xFZkgz-uOdyaQTYE1y0i4WrZnJWybT_9P4E6qsVEZudG/exec";
 
@@ -246,26 +247,22 @@
     });
 
     function initMap() {
-      // Inisialisasi peta ke default lokasi
       map = L.map('map').setView([-6.2088, 106.8456], 10);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap'
       }).addTo(map);
 
-      // Inisialisasi marker bawaan
       marker = L.marker([-6.2088, 106.8456]).addTo(map);
 
-      // --- EVENT LISTENER FITUR PICK/PIN PETA ---
+      // Event listener klik / pin peta
       map.on('click', function(e) {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
 
-        // Pindahkan marker ke posisi yang diklik
         marker.setLatLng([lat, lng])
               .bindPopup(`<b>Pin Lokasi Dilihat</b><br>${lat.toFixed(4)}, ${lng.toFixed(4)}`)
               .openPopup();
 
-        // Buat objek lokasi dari hasil klik peta
         currentSelectedLocation = {
           id: "PIN-MAP",
           name: `📍 Pin Peta (${lat.toFixed(3)}, ${lng.toFixed(3)})`,
@@ -273,21 +270,21 @@
           lng: lng
         };
 
-        // Reset dropdown pilihan kota
         document.getElementById("citySelect").value = "";
-
-        // Update tampilan koordinat
         document.getElementById("coordText").innerText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
-        // Langsung deteksi dan ambil data kualitas udara di area yang di-pin
         fetchAQI(currentSelectedLocation);
       });
     }
 
+    // Fungsi Re-Center mengarah kembali khusus ke posisi GPS user
     function reCenterMap() {
-      if (currentSelectedLocation) {
-        map.setView([currentSelectedLocation.lat, currentSelectedLocation.lng], 12);
-        marker.setLatLng([currentSelectedLocation.lat, currentSelectedLocation.lng]);
+      if (userGpsLocation) {
+        map.setView([userGpsLocation.lat, userGpsLocation.lng], 14);
+        marker.setLatLng([userGpsLocation.lat, userGpsLocation.lng])
+              .bindPopup("<b>Lokasi Anda Saat Ini</b>").openPopup();
+      } else {
+        alert("Lokasi GPS Anda belum terdeteksi. Silakan klik tombol 'GPS Saya' terlebih dahulu.");
       }
     }
 
@@ -304,6 +301,12 @@
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
 
+          // Simpan ke variabel khusus GPS user
+          userGpsLocation = {
+            lat: lat,
+            lng: lng
+          };
+
           currentSelectedLocation = {
             id: "GPS-USER",
             name: "📍 Lokasi Saya Saat Ini",
@@ -314,7 +317,7 @@
           document.getElementById("coordText").innerText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
           document.getElementById("citySelect").value = "";
 
-          map.setView([lat, lng], 13);
+          map.setView([lat, lng], 14);
           marker.setLatLng([lat, lng]).bindPopup("<b>Lokasi Anda Saat Ini</b>").openPopup();
 
           fetchAQI(currentSelectedLocation);
@@ -371,7 +374,8 @@
 
       if (currentSelectedLocation) {
         document.getElementById("coordText").innerText = `${currentSelectedLocation.lat.toFixed(5)}, ${currentSelectedLocation.lng.toFixed(5)}`;
-        reCenterMap();
+        map.setView([currentSelectedLocation.lat, currentSelectedLocation.lng], 12);
+        marker.setLatLng([currentSelectedLocation.lat, currentSelectedLocation.lng]);
         fetchAQI(currentSelectedLocation);
       }
     }
