@@ -1,0 +1,16 @@
+{
+  "name": "UDARAKU - Pantau Kualitas Udara",
+  "short_name": "UDARAKU",
+  "description": "Aplikasi Pemantauan Kualitas Udara Real-Time Berbasis Lokasi Spreadsheet",
+  "start_url": "./Index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0284c7",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3206/3206143.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
