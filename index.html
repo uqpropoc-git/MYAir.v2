@@ -52,20 +52,13 @@
   <!-- MAIN CONTENT CONTAINER -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full grow space-y-6">
 
-    <!-- LOCATION SELECTOR, GPS, & MAP PICK INSTRUCTION -->
+    <!-- LOCATION SELECTOR & GPS -->
     <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 sm:p-6 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
-        <label for="citySelect" class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 whitespace-nowrap">
-          <i class="fa-solid fa-location-dot text-sky-400"></i> Pilih Lokasi:
-        </label>
-        <select id="citySelect" onchange="onCityChange()" class="bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block w-full sm:w-60 p-2.5 transition">
-          <option value="" disabled selected>Memuat Lokasi Spreadsheet...</option>
-        </select>
-        
+      <div class="flex items-center gap-3 w-full lg:w-auto">
         <!-- Tombol Lokasi Saya (GPS) -->
-        <button onclick="useCurrentLocation()" class="w-full sm:w-auto flex items-center justify-center space-x-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl transition shadow-md whitespace-nowrap">
+        <button onclick="useCurrentLocation()" class="w-full sm:w-auto flex items-center justify-center space-x-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs sm:text-sm font-semibold px-5 py-3 rounded-xl transition shadow-md whitespace-nowrap">
           <i class="fa-solid fa-crosshairs animate-pulse"></i>
-          <span>GPS Saya</span>
+          <span>Gunakan GPS Saya</span>
         </button>
       </div>
 
@@ -73,14 +66,14 @@
         <!-- Badge Info Pin Peta -->
         <div class="bg-sky-950/60 border border-sky-500/30 text-sky-300 px-3 py-2 rounded-xl flex items-center gap-2">
           <i class="fa-solid fa-hand-pointer text-sky-400 animate-bounce"></i>
-          <span>Klik/Pin di mana saja pada peta</span>
+          <span>Atau klik/pin di mana saja pada peta</span>
         </div>
 
         <!-- Nama Wilayah & Koordinat Display -->
         <div class="bg-slate-900/80 border border-slate-700/80 px-3 py-2 rounded-xl flex flex-col gap-0.5">
           <div class="flex items-center gap-1.5 text-slate-200 font-semibold">
             <i class="fa-solid fa-map-pin text-teal-400"></i>
-            <span id="regionNameText">Memuat Wilayah...</span>
+            <span id="regionNameText">Silakan Pilih Lokasi (GPS / Peta)</span>
           </div>
           <span class="text-[10px] text-slate-400">Koordinat: <strong id="coordText" class="text-slate-300">-</strong></span>
         </div>
@@ -119,10 +112,10 @@
 
         <div class="my-6">
           <div id="aqiValue" class="text-6xl font-black tracking-tight text-slate-100">--</div>
-          <div id="aqiStatusText" class="text-lg font-bold mt-2 text-slate-300">Menghitung Data...</div>
+          <div id="aqiStatusText" class="text-lg font-bold mt-2 text-slate-300">Menunggu Lokasi...</div>
         </div>
 
-        <!-- TAMBAHAN: INFORMASI CUACA (Suhu, Kelembapan, Angin) -->
+        <!-- INFORMASI CUACA (Suhu, Kelembapan, Angin) -->
         <div class="w-full grid grid-cols-3 gap-2 pt-3 border-t border-slate-700/55 text-center">
           <div class="bg-slate-900/70 p-2 rounded-xl border border-slate-700/50">
             <div class="text-[10px] text-slate-400"><i class="fa-solid fa-temperature-half text-sky-400 mr-1"></i>Suhu</div>
@@ -241,34 +234,35 @@
 
   <!-- FOOTER -->
   <footer class="bg-slate-800/40 border-t border-slate-800 py-4 text-center text-xs text-slate-500 space-y-1">
-    <p>&copy; <span id="currentYear"></span> Power by G.A.S</p>
+    <p>&copy; <span id="currentYear"></span>Power by G.A.S</p>
     <p class="text-[11px] text-slate-400 font-semibold tracking-wider">Created By UQ</p>
   </footer>
 
   <!-- SCRIPT LOGIC -->
   <script>
     let map, marker;
-    let locations = [];
     let currentSelectedLocation = null;
     let currentAQIData = null;
     let userGpsLocation = null;
 
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwQNJ9ORqtZ7Skn-VkW5at3xFZkgz-uOdyaQTYE1y0i4WrZnJWybT_9P4E6qsVEZudG/exec";
-
     document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("currentYear").innerText = new Date().getFullYear();
       initMap();
-      loadLocationsFromSpreadsheet();
+      
+      // Otomatis deteksi GPS saat halaman pertama kali dibuka
+      useCurrentLocation();
     });
 
     function initMap() {
-      map = L.map('map').setView([-6.2088, 106.8456], 10);
+      // Default awal peta di Jakarta
+      map = L.map('map').setView([-6.2088, 106.8456], 11);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap'
       }).addTo(map);
 
       marker = L.marker([-6.2088, 106.8456]).addTo(map);
 
+      // Event listener klik / pin peta manual
       map.on('click', async function(e) {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
@@ -283,15 +277,12 @@
               .openPopup();
 
         currentSelectedLocation = {
-          id: "PIN-MAP",
           name: regionName,
           lat: lat,
           lng: lng
         };
 
-        document.getElementById("citySelect").value = "";
         document.getElementById("regionNameText").innerText = regionName;
-
         fetchAQI(currentSelectedLocation);
       });
     }
@@ -318,7 +309,7 @@
         marker.setLatLng([userGpsLocation.lat, userGpsLocation.lng])
               .bindPopup("<b>Lokasi Anda Saat Ini</b>").openPopup();
       } else {
-        alert("Lokasi GPS Anda belum terdeteksi. Silakan klik tombol 'GPS Saya' terlebih dahulu.");
+        alert("Lokasi GPS Anda belum terdeteksi. Silakan klik tombol 'Gunakan GPS Saya'.");
       }
     }
 
@@ -340,7 +331,6 @@
           const regionName = await getRegionNameFromCoordinates(lat, lng);
 
           currentSelectedLocation = {
-            id: "GPS-USER",
             name: regionName,
             lat: lat,
             lng: lng
@@ -348,7 +338,6 @@
 
           document.getElementById("regionNameText").innerText = regionName;
           document.getElementById("coordText").innerText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-          document.getElementById("citySelect").value = "";
 
           map.setView([lat, lng], 14);
           marker.setLatLng([lat, lng]).bindPopup(`<b>${regionName}</b>`).openPopup();
@@ -356,66 +345,12 @@
           fetchAQI(currentSelectedLocation);
         },
         (error) => {
-          alert("Gagal mendeteksi lokasi: " + error.message);
-          document.getElementById("regionNameText").innerText = "Gagal mendeteksi";
+          alert("Gagal mendeteksi lokasi otomatis: " + error.message + ". Silakan klik pin pada peta.");
+          document.getElementById("regionNameText").innerText = "Gagal mendeteksi GPS";
           document.getElementById("coordText").innerText = "-";
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
-    }
-
-    function loadLocationsFromSpreadsheet() {
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run
-          .withSuccessHandler(renderLocations)
-          .withFailureHandler(err => alert("Error: " + err.message))
-          .getSavedLocations();
-      } else {
-        fetch(`${GAS_WEB_APP_URL}?action=getLocations`)
-          .then(res => res.json())
-          .catch(() => {
-            renderLocations([
-              { id: "LOK-001", name: "Jakarta", lat: -6.2088, lng: 106.8456 },
-              { id: "LOK-002", name: "Surabaya", lat: -7.2575, lng: 112.7521 },
-              { id: "LOK-003", name: "Bandung", lat: -6.9175, lng: 107.6191 }
-            ]);
-          });
-      }
-    }
-
-    function renderLocations(data) {
-      locations = data;
-      const select = document.getElementById("citySelect");
-      select.innerHTML = '<option value="" disabled selected>-- Pilih dari Spreadsheet --</option>';
-
-      locations.forEach((loc) => {
-        const opt = document.createElement("option");
-        opt.value = loc.id;
-        opt.textContent = loc.name;
-        select.appendChild(opt);
-      });
-
-      if (locations.length > 0) {
-        select.selectedIndex = 1;
-        onCityChange();
-      }
-    }
-
-    function onCityChange() {
-      const select = document.getElementById("citySelect");
-      const selectedId = select.value;
-      currentSelectedLocation = locations.find(l => l.id === selectedId);
-
-      if (currentSelectedLocation) {
-        document.getElementById("regionNameText").innerText = currentSelectedLocation.name;
-        document.getElementById("coordText").innerText = `${currentSelectedLocation.lat.toFixed(5)}, ${currentSelectedLocation.lng.toFixed(5)}`;
-        
-        map.setView([currentSelectedLocation.lat, currentSelectedLocation.lng], 12);
-        marker.setLatLng([currentSelectedLocation.lat, currentSelectedLocation.lng])
-              .bindPopup(`<b>${currentSelectedLocation.name}</b>`).openPopup();
-        
-        fetchAQI(currentSelectedLocation);
-      }
     }
 
     function fetchAQI(loc) {
@@ -428,9 +363,8 @@
           .withFailureHandler(err => alert("Gagal mengambil AQI: " + err.message))
           .fetchAQIData(loc.lat, loc.lng);
       } else {
-        // Menggunakan Open-Meteo Air Quality + Weather API endpoint sekaligus untuk suhu, kelembapan, dan angin
         const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${loc.lat}&longitude=${loc.lng}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`;
-        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m`;
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m`;
         
         Promise.all([
           fetch(url).then(res => res.json()),
@@ -464,7 +398,6 @@
       document.getElementById("aqiValue").innerText = aqi;
       document.getElementById("updateTime").innerText = new Date().toLocaleTimeString("id-ID");
 
-      // Update Card Polutan
       document.getElementById("val-pm25").innerText = data.pm25;
       document.getElementById("val-pm10").innerText = data.pm10;
       document.getElementById("val-co").innerText = data.co;
@@ -472,7 +405,6 @@
       document.getElementById("val-so2").innerText = data.so2;
       document.getElementById("val-o3").innerText = data.o3;
 
-      // Update Card Cuaca Tambahan
       if (data.temp !== undefined) {
         document.getElementById("val-temp").innerText = `${data.temp} °C`;
         document.getElementById("val-humidity").innerText = `${data.humidity} %`;
