@@ -22,7 +22,7 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
     body { font-family: 'Plus Jakarta Sans', sans-serif; }
-    #map { height: 320px; z-index: 10; }
+    #map { height: 340px; z-index: 10; cursor: crosshair; }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between">
@@ -52,25 +52,31 @@
   <!-- MAIN CONTENT CONTAINER -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full grow space-y-6">
 
-    <!-- LOCATION SELECTOR & GPS CURRENT LOCATION BUTTON -->
+    <!-- LOCATION SELECTOR, GPS, & MAP PICK INSTRUCTION -->
     <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 sm:p-6 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-4">
       <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
         <label for="citySelect" class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 whitespace-nowrap">
           <i class="fa-solid fa-location-dot text-sky-400"></i> Pilih Lokasi:
         </label>
-        <select id="citySelect" onchange="onCityChange()" class="bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block w-full sm:w-64 p-2.5 transition">
+        <select id="citySelect" onchange="onCityChange()" class="bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block w-full sm:w-60 p-2.5 transition">
           <option value="" disabled selected>Memuat Lokasi Spreadsheet...</option>
         </select>
         
-        <!-- Tombol Lokasi Saya Saat Ini (GPS) -->
+        <!-- Tombol Lokasi Saya (GPS) -->
         <button onclick="useCurrentLocation()" class="w-full sm:w-auto flex items-center justify-center space-x-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl transition shadow-md whitespace-nowrap">
           <i class="fa-solid fa-crosshairs animate-pulse"></i>
-          <span>Lokasi Saya Saat Ini</span>
+          <span>GPS Saya</span>
         </button>
       </div>
 
       <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 text-xs text-slate-400">
-        <!-- Koordinat Realtime Display -->
+        <!-- Badge Info Pin Peta -->
+        <div class="bg-sky-950/60 border border-sky-500/30 text-sky-300 px-3 py-2 rounded-xl flex items-center gap-2">
+          <i class="fa-solid fa-hand-pointer text-sky-400 animate-bounce"></i>
+          <span>Klik/Pin di mana saja pada peta untuk cek lokasi</span>
+        </div>
+
+        <!-- Koordinat Display -->
         <div id="coordDisplay" class="bg-slate-900/80 border border-slate-700/80 px-3 py-2 rounded-xl flex items-center gap-2">
           <i class="fa-solid fa-satellite-dish text-sky-400"></i>
           <span>Koordinat: <strong id="coordText" class="text-slate-200">-</strong></span>
@@ -122,7 +128,7 @@
       <div class="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
         <div class="flex items-center justify-between mb-3 px-1">
           <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
-            <i class="fa-solid fa-map-location-dot text-sky-400"></i> Peta Wilayah Pantauan
+            <i class="fa-solid fa-map-location-dot text-sky-400"></i> Peta Wilayah Pantauan (Klik/Pin Peta)
           </h3>
           <button onclick="reCenterMap()" class="flex items-center space-x-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-600 transition shadow-sm">
             <i class="fa-solid fa-crosshairs"></i>
@@ -240,11 +246,42 @@
     });
 
     function initMap() {
+      // Inisialisasi peta ke default lokasi
       map = L.map('map').setView([-6.2088, 106.8456], 10);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap'
       }).addTo(map);
+
+      // Inisialisasi marker bawaan
       marker = L.marker([-6.2088, 106.8456]).addTo(map);
+
+      // --- EVENT LISTENER FITUR PICK/PIN PETA ---
+      map.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+
+        // Pindahkan marker ke posisi yang diklik
+        marker.setLatLng([lat, lng])
+              .bindPopup(`<b>Pin Lokasi Dilihat</b><br>${lat.toFixed(4)}, ${lng.toFixed(4)}`)
+              .openPopup();
+
+        // Buat objek lokasi dari hasil klik peta
+        currentSelectedLocation = {
+          id: "PIN-MAP",
+          name: `📍 Pin Peta (${lat.toFixed(3)}, ${lng.toFixed(3)})`,
+          lat: lat,
+          lng: lng
+        };
+
+        // Reset dropdown pilihan kota
+        document.getElementById("citySelect").value = "";
+
+        // Update tampilan koordinat
+        document.getElementById("coordText").innerText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+        // Langsung deteksi dan ambil data kualitas udara di area yang di-pin
+        fetchAQI(currentSelectedLocation);
+      });
     }
 
     function reCenterMap() {
