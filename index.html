@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UDARAKU - Indeks Kualitas Udara Real-Time</title>
+  
+  <!-- PWA Manifest & Meta Tags -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0284c7">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    #map { height: 320px; z-index: 10; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between">
+
+  <!-- TOP BAR / HEADER -->
+  <header class="bg-slate-800/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-gradient-to-tr from-sky-500 to-teal-400 p-2.5 rounded-xl shadow-lg shadow-sky-500/20">
+          <i class="fa-solid font-bold fa-wind text-white text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-sky-400 to-teal-300 bg-clip-text text-transparent">UDARAKU</h1>
+          <p class="text-xs text-slate-400">Air Quality Monitoring</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <button onclick="exportToCSV()" class="flex items-center space-x-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition border border-slate-600 shadow-sm">
+          <i class="fa-solid fa-file-export text-teal-400"></i>
+          <span class="hidden sm:inline">Export Report</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full grow space-y-6">
+
+    <!-- LOCATION SELECTOR & GPS CURRENT LOCATION BUTTON -->
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 sm:p-6 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
+        <label for="citySelect" class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 whitespace-nowrap">
+          <i class="fa-solid fa-location-dot text-sky-400"></i> Pilih Lokasi:
+        </label>
+        <select id="citySelect" onchange="onCityChange()" class="bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block w-full sm:w-64 p-2.5 transition">
+          <option value="" disabled selected>Memuat Lokasi Spreadsheet...</option>
+        </select>
+        
+        <!-- Tombol Lokasi Saya Saat Ini (GPS) -->
+        <button onclick="useCurrentLocation()" class="w-full sm:w-auto flex items-center justify-center space-x-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl transition shadow-md whitespace-nowrap">
+          <i class="fa-solid fa-crosshairs animate-pulse"></i>
+          <span>Lokasi Saya Saat Ini</span>
+        </button>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 text-xs text-slate-400">
+        <!-- Koordinat Realtime Display -->
+        <div id="coordDisplay" class="bg-slate-900/80 border border-slate-700/80 px-3 py-2 rounded-xl flex items-center gap-2">
+          <i class="fa-solid fa-satellite-dish text-sky-400"></i>
+          <span>Koordinat: <strong id="coordText" class="text-slate-200">-</strong></span>
+        </div>
+        <div id="lastUpdated" class="flex items-center gap-1.5 whitespace-nowrap">
+          <i class="fa-regular fa-clock"></i> Diperbarui: <span id="updateTime">-</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- WARNING BANNER -->
+    <div id="warningBanner" class="hidden bg-red-950/80 border border-red-500/50 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-red-200 shadow-lg shadow-red-950/50 animate-pulse">
+      <div class="flex items-center space-x-3">
+        <div class="p-2.5 bg-red-800/50 rounded-xl text-red-400 border border-red-500/30">
+          <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-sm text-red-300">Peringatan Kualitas Udara!</h3>
+          <p class="text-xs text-red-200/80">Tingkat polutan melampaui batas aman kesehatan.</p>
+        </div>
+      </div>
+      <button onclick="openSolutionModal()" class="w-full sm:w-auto text-xs bg-red-600 hover:bg-red-500 text-white font-semibold px-4 py-2 rounded-xl transition shadow-md whitespace-nowrap">
+        <i class="fa-solid fa-hand-holding-medical mr-1"></i> Solusi & Rekomendasi
+      </button>
+    </div>
+
+    <!-- MAIN AQI GRID DISPLAY -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- CARD AQI SCORE MAIN -->
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl flex flex-col justify-between items-center text-center relative overflow-hidden">
+        <div class="w-full flex justify-between items-center text-xs text-slate-400 font-medium border-b border-slate-700/50 pb-3">
+          <span>US AQI INDEX</span>
+          <span id="aqiCategoryTag" class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-700 text-slate-300">Evaluating...</span>
+        </div>
+
+        <div class="my-6">
+          <div id="aqiValue" class="text-6xl font-black tracking-tight text-slate-100">--</div>
+          <div id="aqiStatusText" class="text-lg font-bold mt-2 text-slate-300">Menghitung Data...</div>
+        </div>
+
+        <div class="w-full bg-slate-900 rounded-xl p-3 border border-slate-700/50 flex items-center justify-between text-xs text-slate-400">
+          <span>Batas Aman US EPA:</span>
+          <span class="font-semibold text-emerald-400">0 - 50 AQI</span>
+        </div>
+      </div>
+
+      <!-- MAP CONTAINER -->
+      <div class="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-3 px-1">
+          <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <i class="fa-solid fa-map-location-dot text-sky-400"></i> Peta Wilayah Pantauan
+          </h3>
+          <button onclick="reCenterMap()" class="flex items-center space-x-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-600 transition shadow-sm">
+            <i class="fa-solid fa-crosshairs"></i>
+            <span>Re-Center</span>
+          </button>
+        </div>
+        <div id="map" class="w-full rounded-xl border border-slate-700 overflow-hidden shadow-inner"></div>
+      </div>
+    </div>
+
+    <!-- GRID DETAILED POLLUTANTS (Latar Belakang Unsur Menarik) -->
+    <div>
+      <h3 class="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+        <i class="fa-solid fa-chart-simple text-teal-400"></i> Konsentrasi Polutan Utama
+      </h3>
+      
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <!-- PM2.5 -->
+        <div class="bg-gradient-to-br from-indigo-950/70 to-slate-800 border border-indigo-500/30 rounded-xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden">
+          <div class="absolute -right-3 -bottom-3 text-indigo-500/10 text-5xl font-black pointer-events-none">2.5</div>
+          <div class="text-xs text-indigo-300 font-bold mb-1 flex items-center gap-1"><i class="fa-solid fa-atom"></i> PM2.5</div>
+          <div id="val-pm25" class="text-xl font-bold text-slate-100 my-1">--</div>
+          <div class="text-[10px] text-indigo-400/80">µg/m³</div>
+        </div>
+
+        <!-- PM10 -->
+        <div class="bg-gradient-to-br from-blue-950/70 to-slate-800 border border-blue-500/30 rounded-xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden">
+          <div class="absolute -right-3 -bottom-3 text-blue-500/10 text-5xl font-black pointer-events-none">10</div>
+          <div class="text-xs text-blue-300 font-bold mb-1 flex items-center gap-1"><i class="fa-solid fa-atom"></i> PM10</div>
+          <div id="val-pm10" class="text-xl font-bold text-slate-100 my-1">--</div>
+          <div class="text-[10px] text-blue-400/80">µg/m³</div>
+        </div>
+
+        <!-- CO -->
+        <div class="bg-gradient-to-br from-amber-950/70 to-slate-800 border border-amber-500/30 rounded-xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden">
+          <div class="absolute -right-3 -bottom-3 text-amber-500/10 text-5xl font-black pointer-events-none">CO</div>
+          <div class="text-xs text-amber-300 font-bold mb-1 flex items-center gap-1"><i class="fa-solid fa-atom"></i> CO</div>
+          <div id="val-co" class="text-xl font-bold text-slate-100 my-1">--</div>
+          <div class="text-[10px] text-amber-400/80">µg/m³</div>
+        </div>
+
+        <!-- NO2 -->
+        <div class="bg-gradient-to-br from-purple-950/70 to-slate-800 border border-purple-500/30 rounded-xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden">
+          <div class="absolute -right-3 -bottom-3 text-purple-500/10 text-5xl font-black pointer-events-none">NO₂</div>
+          <div class="text-xs text-purple-300 font-bold mb-1 flex items-center gap-1"><i class="fa-solid fa-atom"></i> NO₂</div>
+          <div id="val-no2" class="text-xl font-bold text-slate-100 my-1">--</div>
+          <div class="text-[10px] text-purple-400/80">µg/m³</div>
+        </div>
+
+        <!-- SO2 -->
+        <div class="bg-gradient-to-br from-rose-950/70 to-slate-800 border border-rose-500/30 rounded-xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden">
+          <div class="absolute -right-3 -bottom-3 text-rose-500/10 text-5xl font-black pointer-events-none">SO₂</div>
+          <div class="text-xs text-rose-300 font-bold mb-1 flex items-center gap-1"><i class="fa-solid fa-atom"></i> SO₂</div>
+          <div id="val-so2" class="text-xl font-bold text-slate-100 my-1">--</div>
+          <div class="text-[10px] text-rose-400/80">µg/m³</div>
+        </div>
+
+        <!-- O3 -->
+        <div class="bg-gradient-to-br from-emerald-950/70 to-slate-800 border border-emerald-500/30 rounded-xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden">
+          <div class="absolute -right-3 -bottom-3 text-emerald-500/10 text-5xl font-black pointer-events-none">O₃</div>
+          <div class="text-xs text-emerald-300 font-bold mb-1 flex items-center gap-1"><i class="fa-solid fa-atom"></i> O₃</div>
+          <div id="val-o3" class="text-xl font-bold text-slate-100 my-1">--</div>
+          <div class="text-[10px] text-emerald-400/80">µg/m³</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL SOLUSI -->
+  <div id="solutionModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+        <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
+          <i class="fa-solid fa-shield-virus text-amber-400"></i> Solusi & Mitigasi Kesehatan
+        </h3>
+        <button onclick="closeSolutionModal()" class="text-slate-400 hover:text-slate-200 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div id="modalSolutionList" class="space-y-2.5 text-xs text-slate-300"></div>
+      <button onclick="closeSolutionModal()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2.5 rounded-xl transition text-sm">
+        Tutup
+      </button>
+    </div>
+  </div>
+
+  <!-- FOOTER (Tahun Dinamis, Power by G.A.S, Created by UQ) -->
+  <footer class="bg-slate-800/40 border-t border-slate-800 py-4 text-center text-xs text-slate-500 space-y-1">
+    <p>&copy; <span id="currentYear"></span> UDARAKU App. Power by G.A.S</p>
+    <p class="text-[11px] text-slate-400 font-semibold tracking-wider">Created By UQ</p>
+  </footer>
+
+  <!-- SCRIPT LOGIC -->
+  <script>
+    let map, marker;
+    let locations = [];
+    let currentSelectedLocation = null;
+    let currentAQIData = null;
+
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwQNJ9ORqtZ7Skn-VkW5at3xFZkgz-uOdyaQTYE1y0i4WrZnJWybT_9P4E6qsVEZudG/exec";
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // Tahun Dinamis Footer
+      document.getElementById("currentYear").innerText = new Date().getFullYear();
+      
+      initMap();
+      loadLocationsFromSpreadsheet();
+    });
+
+    function initMap() {
+      map = L.map('map').setView([-6.2088, 106.8456], 10);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+
+      // Default marker awal
+      marker = L.marker([-6.2088, 106.8456]).addTo(map);
+    }
+
+    function reCenterMap() {
+      if (currentSelectedLocation) {
+        map.setView([currentSelectedLocation.lat, currentSelectedLocation.lng], 12);
+        marker.setLatLng([currentSelectedLocation.lat, currentSelectedLocation.lng]);
+      }
+    }
+
+    // Fungsi Mengambil Lokasi GPS Pengguna Real-time
+    function useCurrentLocation() {
+      if (!navigator.geolocation) {
+        alert("Geolocation tidak didukung oleh browser Anda.");
+        return;
+      }
+
+      document.getElementById("coordText").innerText = "Mencari posisi GPS...";
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+
+          // Buat objek lokasi kustom untuk posisi user
+          currentSelectedLocation = {
+            id: "GPS-USER",
+            name: "📍 Lokasi Saya Saat Ini",
+            lat: lat,
+            lng: lng
+          };
+
+          // Update teks koordinat real-time
+          document.getElementById("coordText").innerText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+          // Reset pilihan dropdown agar tidak bentrok
+          document.getElementById("citySelect").value = "";
+
+          // Perbarui peta dengan icon penanda khusus / standar
+          map.setView([lat, lng], 13);
+          marker.setLatLng([lat, lng]).bindPopup("<b>Lokasi Anda Saat Ini</b>").openPopup();
+
+          // Ambil data AQI berdasarkan koordinat GPS user
+          fetchAQI(currentSelectedLocation);
+        },
+        (error) => {
+          alert("Gagal mendeteksi lokasi: " + error.message);
+          document.getElementById("coordText").innerText = "Gagal mendeteksi";
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    function loadLocationsFromSpreadsheet() {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(renderLocations)
+          .withFailureHandler(err => alert("Error: " + err.message))
+          .getSavedLocations();
+      } else {
+        fetch(`${GAS_WEB_APP_URL}?action=getLocations`)
+          .then(res => res.json())
+          .catch(() => {
+            renderLocations([
+              { id: "LOK-001", name: "Jakarta (Spreadsheet)", lat: -6.2088, lng: 106.8456 },
+              { id: "LOK-002", name: "Surabaya (Spreadsheet)", lat: -7.2575, lng: 112.7521 },
+              { id: "LOK-003", name: "Bandung (Spreadsheet)", lat: -6.9175, lng: 107.6191 }
+            ]);
+          });
+      }
+    }
+
+    function renderLocations(data) {
+      locations = data;
+      const select = document.getElementById("citySelect");
+      select.innerHTML = '<option value="" disabled selected>-- Pilih dari Spreadsheet --</option>';
+
+      locations.forEach((loc) => {
+        const opt = document.createElement("option");
+        opt.value = loc.id;
+        opt.textContent = loc.name;
+        select.appendChild(opt);
+      });
+
+      if (locations.length > 0) {
+        select.selectedIndex = 1;
+        onCityChange();
+      }
+    }
+
+    function onCityChange() {
+      const select = document.getElementById("citySelect");
+      const selectedId = select.value;
+      currentSelectedLocation = locations.find(l => l.id === selectedId);
+
+      if (currentSelectedLocation) {
+        // Tampilkan koordinat lokasi dari spreadsheet secara real-time
+        document.getElementById("coordText").innerText = `${currentSelectedLocation.lat.toFixed(5)}, ${currentSelectedLocation.lng.toFixed(5)}`;
+        
+        reCenterMap();
+        fetchAQI(currentSelectedLocation);
+      }
+    }
+
+    function fetchAQI(loc) {
+      document.getElementById("aqiValue").innerText = "...";
+      document.getElementById("aqiStatusText").innerText = "Mengambil data...";
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(data => updateDashboard(data, loc))
+          .withFailureHandler(err => alert("Gagal mengambil AQI: " + err.message))
+          .fetchAQIData(loc.lat, loc.lng);
+      } else {
+        const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${loc.lat}&longitude=${loc.lng}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`;
+        fetch(url)
+          .then(res => res.json())
+          .then(res => {
+            const current = res.current;
+            const data = {
+              aqi: current.us_aqi || 0,
+              pm25: current.pm2_5 || 0,
+              pm10: current.pm10 || 0,
+              co: current.carbon_monoxide || 0,
+              no2: current.nitrogen_dioxide || 0,
+              so2: current.sulphur_dioxide || 0,
+              o3: current.ozone || 0
+            };
+            updateDashboard(data, loc);
+          })
+          .catch(err => alert("Gagal mengambil data udara: " + err.message));
+      }
+    }
+
+    function updateDashboard(data, loc) {
+      currentAQIData = data;
+      const aqi = data.aqi;
+      document.getElementById("aqiValue").innerText = aqi;
+      document.getElementById("updateTime").innerText = new Date().toLocaleTimeString("id-ID");
+
+      document.getElementById("val-pm25").innerText = data.pm25;
+      document.getElementById("val-pm10").innerText = data.pm10;
+      document.getElementById("val-co").innerText = data.co;
+      document.getElementById("val-no2").innerText = data.no2;
+      document.getElementById("val-so2").innerText = data.so2;
+      document.getElementById("val-o3").innerText = data.o3;
+
+      const warningBanner = document.getElementById("warningBanner");
+      const aqiStatusText = document.getElementById("aqiStatusText");
+      const aqiCategoryTag = document.getElementById("aqiCategoryTag");
+
+      let category = "";
+      let isWarning = false;
+
+      if (aqi <= 50) {
+        category = "Baik";
+        aqiStatusText.innerText = "Kualitas Udara Baik";
+        aqiStatusText.className = "text-lg font-bold mt-2 text-emerald-400";
+        aqiCategoryTag.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-950 text-emerald-300 border border-emerald-800";
+        warningBanner.classList.add("hidden");
+      } else if (aqi <= 100) {
+        category = "Sedang";
+        aqiStatusText.innerText = "Kualitas Udara Sedang";
+        aqiStatusText.className = "text-lg font-bold mt-2 text-yellow-400";
+        aqiCategoryTag.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-yellow-950 text-yellow-300 border border-yellow-800";
+        warningBanner.classList.add("hidden");
+      } else if (aqi <= 150) {
+        category = "Sensitif";
+        aqiStatusText.innerText = "Tidak Sehat bagi Sensitif";
+        aqiStatusText.className = "text-lg font-bold mt-2 text-orange-400";
+        aqiCategoryTag.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-orange-950 text-orange-300 border border-orange-800";
+        isWarning = true;
+      } else {
+        category = "Berbahaya";
+        aqiStatusText.innerText = "BERBAHAYA";
+        aqiStatusText.className = "text-lg font-bold mt-2 text-red-500";
+        aqiCategoryTag.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-red-950 text-red-300 border border-red-800";
+        isWarning = true;
+      }
+
+      aqiCategoryTag.innerText = category;
+      if (isWarning) warningBanner.classList.remove("hidden");
+    }
+
+    function openSolutionModal() {
+      const list = document.getElementById("modalSolutionList");
+      list.innerHTML = `
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-700"><i class="fa-solid fa-mask text-amber-400 mr-2"></i> Gunakan Masker N95/KN95 di luar ruangan.</div>
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-700"><i class="fa-solid fa-house-chimney text-amber-400 mr-2"></i> Tutup jendela untuk mengurangi polusi masuk.</div>
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-700"><i class="fa-solid fa-wind text-amber-400 mr-2"></i> Nyalakan air purifier jika tersedia.</div>
+      `;
+      document.getElementById("solutionModal").classList.remove("hidden");
+    }
+
+    function closeSolutionModal() {
+      document.getElementById("solutionModal").classList.add("hidden");
+    }
+
+    function exportToCSV() {
+      if (!currentSelectedLocation || !currentAQIData) return alert("Belum ada data.");
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + "Tanggal,Kota,AQI,PM2.5,PM10,CO,NO2,SO2,O3\n"
+        + `${new Date().toLocaleDateString("id-ID")},${currentSelectedLocation.name},${currentAQIData.aqi},${currentAQIData.pm25},${currentAQIData.pm10},${currentAQIData.co},${currentAQIData.no2},${currentAQIData.so2},${currentAQIData.o3}`;
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `Laporan_AQI_${currentSelectedLocation.name.replace(/[^a-zA-Z0-9]/g, '_')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>
